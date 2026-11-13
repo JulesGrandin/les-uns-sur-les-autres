@@ -1103,7 +1103,7 @@ function renderRound() {
   ui.guess.focus({ preventScroll: true });
 }
 
-function closeRound(kind, last) {
+function closeRound(kind) {
   if (locked) return;
   locked = true;
   stopRoundTimer();
@@ -1118,7 +1118,8 @@ function closeRound(kind, last) {
   ui.feedback.classList.toggle("is-miss", kind === "timeout");
   if (kind === "complete") {
     ui.feedbackKicker.textContent = "Bravo !";
-    ui.feedbackDetail.textContent = `Il y avait effectivement ${articleName(last)}.`;
+    const word = territoryWord(round.entities.length);
+    ui.feedbackDetail.textContent = `Les ${word} empilés étaient bien ${joinNames(round.entities)}.`;
   } else {
     const missed = round.entities.filter((item) => !round.foundIds.includes(item.id));
     missed.forEach((item) => markEdge(item.id, "is-missed"));
@@ -1163,7 +1164,7 @@ function submitGuess(entity) {
   ui.scoreLine.textContent = `Score ${pointsSoFar()}`;
   const left = round.entities.length - round.foundIds.length;
   if (left === 0) {
-    closeRound("complete", entity);
+    closeRound("complete");
     return;
   }
   setHint("hit", `Bravo ! Il y avait effectivement ${articleName(entity)}.`);
