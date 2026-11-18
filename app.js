@@ -121,6 +121,8 @@ const US_ARTICLE = {
 };
 
 const MASK = 56;
+const BOARD_ORIGIN = "https://les-uns-sur-les-autres.julesgrandin.workers.dev";
+const BOARD_NAME_KEY = "uns-sur-les-autres-pseudo";
 
 const $ = (id) => document.getElementById(id);
 
@@ -162,6 +164,12 @@ const ui = {
   finalScore: $("final-score"),
   finishPace: $("finish-pace"),
   recap: $("finish-recap"),
+  boardMode: $("board-mode"),
+  boardForm: $("board-form"),
+  boardName: $("board-name"),
+  boardSave: $("board-save"),
+  boardNote: $("board-note"),
+  boardList: $("board-list"),
   replay: $("btn-replay"),
 };
 
@@ -1172,6 +1180,113 @@ function submitGuess(entity) {
   ui.guess.focus({ preventScroll: true });
 }
 
+function modeLabel() {
+  return `${TERRITORY_LABEL[settings.territory]} · ${DIFF_LABEL[settings.difficulty]} · ${settings.length} manches · ${PACE_LABEL[settings.ms]}`;
+}
+
+function ordinal(rank) {
+  return rank === 1 ? "1er" : `${rank}e`;
+}
+
+function boardOrigin() {
+  if (location.hostname === "127.0.0.1" || location.hostname === "localhost") return "http://127.0.0.1:8787";
+  return BOARD_ORIGIN;
+}
+
+function boardQuery(name) {
+  const params = new URLSearchParams({
+    territory: settings.territory,
+    length: String(settings.length),
+    pace: String(settings.ms),
+    difficulty: settings.difficulty,
+  });
+  if (name) params.set("name", name);
+  return `${boardOrigin()}/scores?${params}`;
+}
+
+function paintBoard(data) {
+  ui.boardList.replaceChildren();
+  (data.entries || []).forEach((entry) => {
+    const li = document.createElement("li");
+    if (entry.yours) li.className = "is-you";
+    const rank = document.createElement("span");
+    rank.className = "board-rank";
+    rank.textContent = ordinal(entry.rank);
+    const name = document.createElement("span");
+    name.className = "board-name";
+    name.textContent = entry.name;
+    const score = document.createElement("span");
+    score.className = "board-score";
+    score.textContent = String(entry.score);
+    li.append(rank, name, score);
+    ui.boardList.append(li);
+  });
+}
+
+function boardMessage(data, status) {
+  if (!data.total) return "Personne n’a encore enregistré de score sur ce mode.";
+  if (!data.rank) return `${data.total} score${data.total > 1 ? "s" : ""} sur ce mode.`;
+  const place = `Tu es ${ordinal(data.rank)} sur ${data.total}.`;
+  if (status === "created") return `Score enregistré. ${place}`;
+  if (status === "improved") return `Nouveau record. ${place}`;
+  if (status === "kept") return `Ton meilleur score reste ${data.best}. ${place}`;
+  return place;
+}
+
+async function loadBoard() {
+  ui.boardMode.textContent = modeLabel();
+  const name = ui.boardName.value.trim();
+  try {
+    const response = await fetch(boardQuery(name), { signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(String(response.status));
+    const data = await response.json();
+    paintBoard(data);
+    ui.boardNote.textContent = boardMessage(data);
+  } catch {
+    ui.boardList.replaceChildren();
+    ui.boardNote.textContent = "Le classement ne répond pas pour le moment.";
+  }
+}
+
+async function saveBoard(event) {
+  event.preventDefault();
+  const name = ui.boardName.value.trim();
+  const score = pointsSoFar();
+  if (!name) {
+    ui.boardNote.textContent = "Indique un pseudo.";
+    return;
+  }
+  ui.boardSave.disabled = true;
+  try {
+    const response = await fetch(`${boardOrigin()}/scores`, {
+      signal: AbortSignal.timeout(8000),
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name,
+        score,
+        territory: settings.territory,
+        length: settings.length,
+        pace: settings.ms,
+        difficulty: settings.difficulty,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (response.status === 400 && data.error === "pseudo") {
+      ui.boardNote.textContent = "Deux caractères minimum, sans symbole bizarre.";
+      return;
+    }
+    if (!response.ok) throw new Error(String(response.status));
+    try { localStorage.setItem(BOARD_NAME_KEY, name); } catch { /* mode privé */ }
+    paintBoard(data);
+    ui.boardNote.textContent = boardMessage(data, data.status);
+  } catch {
+    ui.boardNote.textContent = "Le classement ne répond pas pour le moment.";
+  } finally {
+    ui.boardSave.disabled = false;
+  }
+}
+
 function finish() {
   stopRoundTimer();
   stopSplit();
@@ -1198,6 +1313,10 @@ function finish() {
     </li>`;
   }).join("");
   ui.finish.hidden = false;
+  if (!ui.boardName.value) {
+    try { ui.boardName.value = localStorage.getItem(BOARD_NAME_KEY) || ""; } catch { /* mode privé */ }
+  }
+  loadBoard();
 }
 
 function startGame() {
@@ -1307,6 +1426,7 @@ function bindSettings() {
     if (ui.splitBtn.hidden) return;
     playSplit(false);
   });
+  ui.boardForm.addEventListener("submit", saveBoard);
   ui.replay.addEventListener("click", () => {
     stopRoundTimer();
     stopSplit();

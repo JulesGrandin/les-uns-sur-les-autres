@@ -1,0 +1,9 @@
+name = "les-uns-sur-les-autres"
+main = "src/index.js"
+compatibility_date = "2026-11-12"
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "les-uns-sur-les-autres-scores"
+database_id = "b16c1101-6163-4ef2-8fb7-8f196ebc4769"
