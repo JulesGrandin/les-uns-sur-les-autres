@@ -1431,6 +1431,16 @@ function bindSettings() {
     });
   });
   refreshIntro();
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.repeat || event.isComposing) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+    if (ui.intro.hidden || ui.start.disabled) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest("button, a, input, textarea, select")) return;
+    event.preventDefault();
+    ui.start.click();
+  });
   ui.start.addEventListener("click", () => {
     if (ui.start.disabled) return;
     ui.start.disabled = true;
