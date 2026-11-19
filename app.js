@@ -48,11 +48,10 @@ const DIFF_LABEL = {
   hyper: "Hyper difficile",
 };
 
-const PACE_LABEL = {
-  30000: "À la cool",
-  20000: "Stressant",
-  10000: "Hyper stressant",
-};
+const ROUND_MS = 30000;
+const ROUND_CENTIS = 3000;
+const CENTIS_PER_SECOND = 100;
+const CENTIS_PER_MINUTE = 6000;
 
 const TERRITORY_LABEL = {
   world: "Pays du monde",
@@ -173,7 +172,7 @@ const ui = {
   replay: $("btn-replay"),
 };
 
-const settings = { territory: "world", length: 5, difficulty: "normal", ms: 30000 };
+const settings = { territory: "world", length: 5, difficulty: "normal", ms: ROUND_MS };
 let catalogs = null;
 let rounds = [];
 let index = 0;
@@ -183,6 +182,7 @@ let suggestIndex = 0;
 let ignoreSubmit = false;
 let timerFrame = 0;
 let roundEndsAt = 0;
+let roundStartedAt = 0;
 let fitFrame = 0;
 let fullHeight = window.innerHeight;
 let splitFrame = 0;
@@ -590,8 +590,34 @@ function joinNames(list) {
   return `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
 }
 
-function pointPhrase(count) {
-  return count > 1 ? `${count} points` : `${count} point`;
+function formatRoundTime(centis) {
+  const safe = Math.max(0, Math.min(ROUND_CENTIS, Math.round(centis) || 0));
+  const seconds = Math.floor(safe / CENTIS_PER_SECOND);
+  const fraction = String(safe % CENTIS_PER_SECOND).padStart(2, "0");
+  return `${seconds}.${fraction}`;
+}
+
+function formatTotalTime(centis) {
+  const safe = Math.max(0, Math.round(centis) || 0);
+  const minutes = Math.floor(safe / CENTIS_PER_MINUTE);
+  const rest = safe % CENTIS_PER_MINUTE;
+  const seconds = Math.floor(rest / CENTIS_PER_SECOND);
+  const fraction = String(rest % CENTIS_PER_SECOND).padStart(2, "0");
+  const secondsHtml = `${seconds}.${fraction}<span class="time-unit"><span class="time-unit-long"> secondes</span><span class="time-unit-short"> s</span></span>`;
+  if (minutes < 1) return secondsHtml;
+  const minuteWord = minutes < 2 ? "minute" : "minutes";
+  return `${minutes}<span class="time-unit"><span class="time-unit-long"> ${minuteWord}</span><span class="time-unit-short"> m</span></span> ${secondsHtml}`;
+}
+
+function formatShortTime(centis) {
+  const safe = Math.max(0, Math.round(centis) || 0);
+  const minutes = Math.floor(safe / CENTIS_PER_MINUTE);
+  const rest = safe % CENTIS_PER_MINUTE;
+  const seconds = Math.floor(rest / CENTIS_PER_SECOND);
+  const fraction = String(rest % CENTIS_PER_SECOND).padStart(2, "0");
+  const secondsText = `${seconds}.${fraction} s`;
+  if (minutes < 1) return secondsText;
+  return `${minutes} m ${secondsText}`;
 }
 
 function territoryWord(count) {
@@ -842,22 +868,27 @@ function setPressed(selector, attr, value) {
   });
 }
 
-function pointsSoFar() {
-  return rounds.reduce((sum, round) => sum + round.foundIds.length, 0);
+function timeSoFar() {
+  return rounds.reduce((sum, round) => sum + (round.closed ? round.centis : 0), 0);
+}
+
+function scoreText() {
+  return `Score ${formatTotalTime(timeSoFar())}`;
 }
 
 function renderHistory() {
   const done = rounds.filter((round) => round.closed);
   ui.historyWrap.hidden = done.length === 0;
   const items = done.map((round) => {
-    const got = round.foundIds.length;
-    const max = round.entities.length;
-    const miss = got < max ? " is-miss" : "";
-    const names = round.entities.map((item) => item.name).join(", ");
-    return `<li><span class="names">${escapeHtml(names)}</span><span class="score-num${miss}">${got}/${max}</span></li>`;
+    const miss = round.centis >= ROUND_CENTIS && round.foundIds.length < round.entities.length ? " is-miss" : "";
+    const names = round.entities.map((item) => {
+      const name = escapeHtml(item.name);
+      return round.foundIds.includes(item.id) ? name : `<span class="is-miss">${name}</span>`;
+    }).join(", ");
+    return `<li><span class="names">${names}</span><span class="score-num${miss}">${formatRoundTime(round.centis)} s</span></li>`;
   });
   if (done.length) {
-    items.push(`<li class="score-history-total"><span>Score</span><span class="score-num">${pointsSoFar()}</span></li>`);
+    items.push(`<li class="score-history-total"><span>Score</span><span class="score-num">${formatTotalTime(timeSoFar())}</span></li>`);
   }
   ui.history.innerHTML = items.join("");
 }
@@ -952,7 +983,8 @@ function tickRoundTimer() {
 
 function startRoundTimer() {
   stopRoundTimer();
-  roundEndsAt = Date.now() + settings.ms;
+  roundStartedAt = Date.now();
+  roundEndsAt = roundStartedAt + settings.ms;
   ui.timerBlock.hidden = false;
   ui.timerFill.style.width = "100%";
   ui.timerBar.setAttribute("aria-valuenow", "100");
@@ -1092,7 +1124,7 @@ function renderRound() {
   const round = rounds[index];
   locked = false;
   ui.kicker.textContent = `Manche ${index + 1} / ${rounds.length}`;
-  ui.scoreLine.textContent = `Score ${pointsSoFar()}`;
+  ui.scoreLine.innerHTML = scoreText();
   ui.askLabel.textContent = encoreText(round.entities.length);
   ui.ask.hidden = false;
   ui.form.hidden = false;
@@ -1119,6 +1151,9 @@ function closeRound(kind) {
   const round = rounds[index];
   round.closed = true;
   round.timedOut = kind === "timeout";
+  round.centis = kind === "timeout"
+    ? ROUND_CENTIS
+    : Math.min(ROUND_CENTIS, Math.max(0, Math.round((Date.now() - roundStartedAt) / 10)));
   ui.ask.hidden = true;
   ui.form.hidden = true;
   showSuggestions([]);
@@ -1127,15 +1162,15 @@ function closeRound(kind) {
   if (kind === "complete") {
     ui.feedbackKicker.textContent = "Bravo !";
     const word = territoryWord(round.entities.length);
-    ui.feedbackDetail.textContent = `Les ${word} empilés étaient bien ${joinNames(round.entities)}.`;
+    ui.feedbackDetail.textContent = `Les ${word} empilés étaient bien ${joinNames(round.entities)}. Temps : ${formatRoundTime(round.centis)} s.`;
   } else {
     const missed = round.entities.filter((item) => !round.foundIds.includes(item.id));
     missed.forEach((item) => markEdge(item.id, "is-missed"));
     ui.feedbackKicker.textContent = "Temps écoulé";
-    ui.feedbackDetail.textContent = `${pointPhrase(round.foundIds.length)}. Il manquait ${joinNames(missed)}.`;
+    ui.feedbackDetail.textContent = `Temps : ${formatRoundTime(ROUND_CENTIS)} s. Il manquait ${joinNames(missed)}.`;
   }
   ui.next.textContent = index >= rounds.length - 1 ? "Voir le score" : "Manche suivante";
-  ui.scoreLine.textContent = `Score ${pointsSoFar()}`;
+  ui.scoreLine.innerHTML = scoreText();
   renderHistory();
   setSplitButton(true);
   playSplit(true);
@@ -1169,7 +1204,6 @@ function submitGuess(entity) {
   markEdge(entity.id, "is-found");
   ui.guess.value = "";
   showSuggestions([]);
-  ui.scoreLine.textContent = `Score ${pointsSoFar()}`;
   const left = round.entities.length - round.foundIds.length;
   if (left === 0) {
     closeRound("complete");
@@ -1181,7 +1215,7 @@ function submitGuess(entity) {
 }
 
 function modeLabel() {
-  return `${TERRITORY_LABEL[settings.territory]} · ${DIFF_LABEL[settings.difficulty]} · ${settings.length} manches · ${PACE_LABEL[settings.ms]}`;
+  return `${TERRITORY_LABEL[settings.territory]} · ${DIFF_LABEL[settings.difficulty]} · ${settings.length} manches`;
 }
 
 function ordinal(rank) {
@@ -1217,7 +1251,7 @@ function paintBoard(data) {
     name.textContent = entry.name;
     const score = document.createElement("span");
     score.className = "board-score";
-    score.textContent = String(entry.score);
+    score.textContent = formatShortTime(entry.score);
     li.append(rank, name, score);
     ui.boardList.append(li);
   });
@@ -1229,7 +1263,7 @@ function boardMessage(data, status) {
   const place = `Tu es ${ordinal(data.rank)} sur ${data.total}.`;
   if (status === "created") return `Score enregistré. ${place}`;
   if (status === "improved") return `Nouveau record. ${place}`;
-  if (status === "kept") return `Ton meilleur score reste ${data.best}. ${place}`;
+  if (status === "kept") return `Ton meilleur temps reste ${formatShortTime(data.best)}. ${place}`;
   return place;
 }
 
@@ -1241,7 +1275,7 @@ async function loadBoard() {
     if (!response.ok) throw new Error(String(response.status));
     const data = await response.json();
     paintBoard(data);
-    ui.boardNote.textContent = boardMessage(data);
+    ui.boardNote.innerHTML = boardMessage(data);
   } catch {
     ui.boardList.replaceChildren();
     ui.boardNote.textContent = "Le classement ne répond pas pour le moment.";
@@ -1251,7 +1285,7 @@ async function loadBoard() {
 async function saveBoard(event) {
   event.preventDefault();
   const name = ui.boardName.value.trim();
-  const score = pointsSoFar();
+  const score = timeSoFar();
   if (!name) {
     ui.boardNote.textContent = "Indique un pseudo.";
     return;
@@ -1279,7 +1313,7 @@ async function saveBoard(event) {
     if (!response.ok) throw new Error(String(response.status));
     try { localStorage.setItem(BOARD_NAME_KEY, name); } catch { /* mode privé */ }
     paintBoard(data);
-    ui.boardNote.textContent = boardMessage(data, data.status);
+    ui.boardNote.innerHTML = boardMessage(data, data.status);
   } catch {
     ui.boardNote.textContent = "Le classement ne répond pas pour le moment.";
   } finally {
@@ -1296,19 +1330,24 @@ function finish() {
   ui.stage.hidden = true;
   ui.chrome.hidden = true;
   ui.historyWrap.hidden = true;
-  const total = pointsSoFar();
-  const max = rounds.reduce((sum, round) => sum + round.entities.length, 0);
-  ui.finalScore.textContent = `${total} / ${max}`;
-  ui.finishPace.textContent = `${TERRITORY_LABEL[settings.territory]} · ${DIFF_LABEL[settings.difficulty]} · ${PACE_LABEL[settings.ms]}`;
+  const total = timeSoFar();
+  ui.finalScore.textContent = formatShortTime(total);
+  ui.finishPace.textContent = modeLabel();
   ui.recap.innerHTML = rounds.map((round, roundIndex) => {
-    const got = round.foundIds.length;
-    const maxRound = round.entities.length;
-    const miss = got < maxRound;
     const missed = round.entities.filter((item) => !round.foundIds.includes(item.id));
-    const detail = miss ? `<p class="finish-recap-detail">Il manquait ${escapeHtml(joinNames(missed))}.</p>` : "";
+    const names = round.entities.map((item) => {
+      const name = escapeHtml(item.name);
+      return round.foundIds.includes(item.id) ? name : `<span class="is-miss">${name}</span>`;
+    }).join(", ");
+    const missedNames = missed.map((item) => `<span class="is-miss">${escapeHtml(articleName(item))}</span>`);
+    const missedText = missedNames.length <= 1
+      ? (missedNames[0] || "")
+      : `${missedNames.slice(0, -1).join(", ")} et ${missedNames[missedNames.length - 1]}`;
+    const detail = missed.length ? `<p class="finish-recap-detail">Il manquait ${missedText}.</p>` : "";
+    const miss = missed.length > 0;
     return `<li>
-      <p class="finish-recap-name">Manche ${roundIndex + 1} · ${escapeHtml(round.entities.map((item) => item.name).join(", "))}</p>
-      <p class="finish-recap-score${miss ? " is-miss" : ""}">${got} / ${maxRound}</p>
+      <p class="finish-recap-name">Manche ${roundIndex + 1} · ${names}</p>
+      <p class="finish-recap-score${miss ? " is-miss" : ""}">${formatShortTime(round.centis || ROUND_CENTIS)}</p>
       ${detail}
     </li>`;
   }).join("");
@@ -1335,6 +1374,7 @@ function startGame() {
   rounds = groups.map((entities) => ({
     entities: shuffle(entities),
     foundIds: [],
+    centis: null,
     closed: false,
     timedOut: false,
   }));
@@ -1387,13 +1427,6 @@ function bindSettings() {
     button.addEventListener("click", () => {
       settings.difficulty = button.dataset.difficulty;
       setPressed("[data-difficulty]", "difficulty", settings.difficulty);
-      refreshIntro();
-    });
-  });
-  document.querySelectorAll("[data-ms]").forEach((button) => {
-    button.addEventListener("click", () => {
-      settings.ms = Number(button.dataset.ms);
-      setPressed("[data-ms]", "ms", String(settings.ms));
       refreshIntro();
     });
   });

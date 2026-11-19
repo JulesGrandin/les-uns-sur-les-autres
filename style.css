@@ -231,8 +231,6 @@ input:focus-visible {
 
 .mode-switch-3 { grid-template-columns: 1fr 1fr 1.35fr; }
 
-.pace-switch { grid-template-columns: 1.05fr 1fr 1.4fr; }
-
 .mode-switch button {
   border: 0;
   background: white;
@@ -318,7 +316,7 @@ input:focus-visible {
   right: 22px;
   z-index: 10;
   width: fit-content;
-  max-width: min(240px, calc(100vw - 44px));
+  max-width: min(320px, calc(100vw - 44px));
   padding: 8px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.94);
@@ -360,11 +358,15 @@ input:focus-visible {
 }
 
 .score-history .score-num {
+  flex: none;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .score-history .is-miss { color: var(--red-deep); }
+
+.time-unit-short { display: none; }
 
 .score-history-total {
   margin-top: 4px;
@@ -604,7 +606,7 @@ input:focus-visible {
   font-size: 40px;
   font-weight: 600;
   letter-spacing: -0.04em;
-  line-height: 1;
+  line-height: 1.05;
   color: var(--red-deep);
 }
 
@@ -663,6 +665,9 @@ input:focus-visible {
 }
 
 .finish-recap-score.is-miss { color: var(--red-deep); }
+
+.finish-recap-name .is-miss,
+.finish-recap-detail .is-miss { color: var(--red-deep); }
 
 .finish-recap-detail {
   grid-column: 1 / -1;
@@ -744,7 +749,11 @@ input:focus-visible {
 .board-name { min-width: 0; }
 
 @media (max-width: 720px) {
-  .score-history-wrap { display: none !important; }
+  .time-unit-long { display: none; }
+  .time-unit-short { display: inline; }
+  .score-history-total .time-unit-long { display: inline; }
+  .score-history-total .time-unit-short { display: none; }
+  .score-history .names { max-width: 42vw; }
 
   #timer-block { height: 11px; }
   .timer-value { font-size: 9px; }
@@ -754,10 +763,20 @@ input:focus-visible {
   #chrome {
     top: calc(16px + env(safe-area-inset-top) + var(--vv-top));
     left: 8px;
-    right: 8px;
-    width: auto;
-    max-width: none;
+    right: auto;
+    width: fit-content;
+    max-width: 46vw;
     padding: 8px 12px;
+    border: 1px solid rgba(28, 25, 21, 0.08);
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(28, 25, 21, 0.12);
+  }
+
+  .score-history-wrap {
+    top: calc(16px + env(safe-area-inset-top) + var(--vv-top));
+    right: 8px;
+    max-width: min(68vw, calc(100vw - 130px));
     border: 1px solid rgba(28, 25, 21, 0.08);
     border-radius: 14px;
     background: #fff;

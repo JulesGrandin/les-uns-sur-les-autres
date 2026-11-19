@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
   <title>Les uns sur les autres</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
   <div id="load-overlay" role="status" aria-live="polite" aria-busy="true" aria-label="Chargement">
@@ -35,13 +35,6 @@
         <button type="button" data-difficulty="hyper" aria-pressed="false">Hyper difficile</button>
       </div>
 
-      <p class="field-label">Rythme</p>
-      <div class="mode-switch mode-switch-3 pace-switch" role="group" aria-label="Rythme">
-        <button type="button" data-ms="30000" aria-pressed="true">À la cool</button>
-        <button type="button" data-ms="20000" aria-pressed="false">Stressant</button>
-        <button type="button" data-ms="10000" aria-pressed="false">Hyper stressant</button>
-      </div>
-
       <p class="field-label">Partie</p>
       <div class="mode-switch" role="group" aria-label="Longueur de la partie">
         <button type="button" data-length="5" aria-pressed="true">5 manches</button>
@@ -62,7 +55,7 @@
 
   <header id="chrome" hidden>
     <p class="round-meta" id="round-kicker">Manche 1 / 5</p>
-    <p class="round-prompt" id="score-line">Score 0</p>
+    <p class="round-prompt" id="score-line">Score 0:00.0</p>
   </header>
 
   <aside id="history-wrap" class="score-history-wrap" hidden aria-label="Votre partie">
@@ -128,6 +121,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

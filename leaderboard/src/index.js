@@ -1,8 +1,8 @@
 const TERRITORIES = new Set(["world", "us"]);
 const LENGTHS = new Set([5, 10]);
-const PACES = new Set([30000, 20000, 10000]);
+const PACES = new Set([30000]);
 const DIFFICULTIES = new Set(["normal", "hard", "hyper"]);
-const STACK = { normal: 2, hard: 3, hyper: 5 };
+const ROUND_CENTIS = 3000;
 const NAME = /^[\p{L}\p{N}][\p{L}\p{N} '\u2019.-]{0,18}[\p{L}\p{N}.]$/u;
 
 function json(data, status = 200) {
@@ -32,7 +32,7 @@ function readMode(source) {
 }
 
 function maxScore(mode) {
-  return mode.length * STACK[mode.difficulty];
+  return mode.length * ROUND_CENTIS;
 }
 
 function cleanName(value) {
@@ -46,7 +46,7 @@ async function standings(db, mode, youKey) {
     `SELECT name, name_key, score
      FROM scores
      WHERE territory = ? AND length = ? AND pace = ? AND difficulty = ?
-     ORDER BY score DESC, updated_at ASC, name_key ASC`
+     ORDER BY score ASC, updated_at ASC, name_key ASC`
   ).bind(mode.territory, mode.length, mode.pace, mode.difficulty).all();
   const entries = (rows.results || []).map((row, index) => ({
     rank: index + 1,
@@ -78,7 +78,7 @@ async function saveScore(db, mode, name, score) {
       `INSERT INTO scores (name, name_key, score, territory, length, pace, difficulty)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).bind(name, key, score, mode.territory, mode.length, mode.pace, mode.difficulty).run();
-  } else if (score > existing.score) {
+  } else if (score < existing.score) {
     await db.prepare(
       `UPDATE scores
        SET name = ?, score = ?, updated_at = datetime('now')
